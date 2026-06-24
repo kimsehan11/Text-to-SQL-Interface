@@ -1,0 +1,6 @@
+python-dotenv
+sqlalchemy
+pymysql
+transformers
+peft
+accelerate
