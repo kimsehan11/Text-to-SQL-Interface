@@ -1,7 +1,7 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
-
+from langchain_openai import ChatOpenAI
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 BASE_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 HF_REPO    = "your-hf-username/qwen2.5-text-to-sql"  # train.py와 동일하게 변경
@@ -27,9 +27,10 @@ def _load_model():
     )
     _model = PeftModel.from_pretrained(base, HF_REPO)
     _model.eval()
+  
 
 # ── 추론 ──────────────────────────────────────────────────────────────────────
-def call_llm(prompt: str) -> str:
+def call_hug_llm(prompt: str) -> str:
     _load_model()
 
     messages = [
@@ -64,3 +65,30 @@ def call_llm(prompt: str) -> str:
 
     generated = output_ids[0][inputs["input_ids"].shape[-1]:]
     return _tokenizer.decode(generated, skip_special_tokens=True).strip()
+
+def call_openai_llm(prompt: str) -> str:
+    llm = ChatOpenAI(
+        model_name="gpt-4o-mini",
+        temperature=0,
+        max_tokens=256,
+    )
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a MySQL expert. "
+                "Convert the user's natural language question into a valid MySQL SELECT query. "
+                "Return only the SQL query."
+            ),
+        },
+        {"role": "user", "content": prompt},
+    ]
+
+    response = llm.invoke(messages)
+    return response.content.strip()
+
+def call_llm(prompt: str,hug=False) -> str:
+    if hug:
+        return call_hug_llm(prompt)
+    return call_openai_llm(prompt)

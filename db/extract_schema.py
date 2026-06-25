@@ -1,27 +1,8 @@
 import os
 from typing import Any
-from dotenv import load_dotenv
-from sqlalchemy import URL, create_engine, inspect, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import  inspect, text
 
-load_dotenv()
-
-database_url = URL.create(
-    drivername="mysql+pymysql",
-    username=os.getenv("DB_USER"),
-    password=os.getenv("DB_PASSWORD"),
-    host=os.getenv("DB_HOST"),
-    port=int(os.getenv("DB_PORT", "3306")),
-    database=os.getenv("DB_NAME"),
-)
-
-engine = create_engine(
-    database_url,
-    pool_pre_ping=True,
-)
-
-
-def get_sample_values(table_name, column_name):
+def get_sample_values(engine,table_name, column_name):
     query = text(
         f"""
         SELECT DISTINCT `{column_name}`
@@ -41,7 +22,7 @@ def get_sample_values(table_name, column_name):
 
     return sample_values
 
-def is_categorical_column(table_name, column_name):
+def is_categorical_column(engine, table_name, column_name):
     query = text(
         f"""
         SELECT COUNT(DISTINCT `{column_name}`)
@@ -55,7 +36,7 @@ def is_categorical_column(table_name, column_name):
 
     return distinct_count <= 20
 
-def extract_schema():
+def extract_schema(engine):
     inspector = inspect(engine)
     schema = {}
 
@@ -83,10 +64,12 @@ def extract_schema():
                 or "TEXT" in column_type
             ):
                 if is_categorical_column(
+                    engine,
                     table_name,
                     column["name"]
                 ):
                     sample_values = get_sample_values(
+                        engine,
                         table_name,
                         column["name"]
                     )
@@ -157,12 +140,5 @@ def print_schema(schema):
                 )
 
 
-if __name__ == "__main__":
-    try:
-        schema = extract_schema()
-        print_schema(schema)
 
-    except SQLAlchemyError as error:
-        print("스키마 추출 실패")
-        print(error)
 

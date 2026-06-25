@@ -9,7 +9,7 @@ from trl import SFTTrainer
 BASE_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 HF_REPO    = "your-hf-username/qwen2.5-text-to-sql"  # 본인 허깅페이스 레포로 변경
 DATASET    = "b-mc2/sql-create-context"
-OUTPUT_DIR = "./output"
+OUTPUT_DIR = "../output"
 
 LORA_CONFIG = LoraConfig(
     r=16,

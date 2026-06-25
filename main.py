@@ -1,9 +1,10 @@
 import os
 from dotenv import load_dotenv
 from sqlalchemy import URL, create_engine
-from extract_schema import extract_schema, print_schema
-from format_schema import format_schema
+from db.extract_schema import extract_schema, print_schema
+from db.format_schema import format_schema
 from sqlalchemy.exc import SQLAlchemyError
+from llm.llm import call_llm
 
 load_dotenv()
 
@@ -21,12 +22,12 @@ engine = create_engine(
     pool_pre_ping=True,
 )
 
-from extract_schema import extract_schema
-from format_schema import format_schema
-from build_prompt import build_prompt
+from db.extract_schema import extract_schema
+from db.format_schema import format_schema
+from llm.build_prompt import build_prompt
 
 
-schema = extract_schema()
+schema = extract_schema(engine)
 schema_text = format_schema(schema)
 
 question = "서울 고객들의 주문 내역을 보여줘"
@@ -36,4 +37,4 @@ prompt = build_prompt(
     schema_text
 )
 
-print(prompt)
+print(call_llm(prompt, hug=False))
