@@ -1,21 +1,24 @@
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from peft import PeftModel
-from langchain_openai import ChatOpenAI
-# ── 설정 ──────────────────────────────────────────────────────────────────────
+﻿from openai import OpenAI
+
 BASE_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
-HF_REPO    = "your-hf-username/qwen2.5-text-to-sql"  # train.py와 동일하게 변경
-
+HF_REPO = "your-hf-username/qwen2.5-text-to-sql"
+OPENAI_MODEL = "gpt-5.5"
 _tokenizer = None
-_model     = None
+_model = None
+_torch = None
 
-# ── 모델 로드 (최초 1회만) ─────────────────────────────────────────────────────
+
 def _load_model():
-    global _tokenizer, _model
+    global _tokenizer, _model, _torch
 
     if _model is not None:
         return
 
+    import torch
+    from peft import PeftModel
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    _torch = torch
     _tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL, trust_remote_code=True)
     _tokenizer.pad_token = _tokenizer.eos_token
 
@@ -27,9 +30,8 @@ def _load_model():
     )
     _model = PeftModel.from_pretrained(base, HF_REPO)
     _model.eval()
-  
 
-# ── 추론 ──────────────────────────────────────────────────────────────────────
+
 def call_hug_llm(prompt: str) -> str:
     _load_model()
 
@@ -37,8 +39,8 @@ def call_hug_llm(prompt: str) -> str:
         {
             "role": "system",
             "content": (
-                "You are a MySQL expert. "
-                "Convert the user's natural language question into a valid MySQL SELECT query. "
+                "You are a SQL expert. "
+                "Convert the user's natural language question into a valid SELECT query. "
                 "Return only the SQL query."
             ),
         },
@@ -52,10 +54,10 @@ def call_hug_llm(prompt: str) -> str:
     )
     inputs = _tokenizer(text, return_tensors="pt").to(_model.device)
 
-    with torch.no_grad():
+    with _torch.no_grad():
         output_ids = _model.generate(
             **inputs,
-            max_new_tokens=256,
+            max_new_tokens=512,
             do_sample=False,
             temperature=None,
             top_p=None,
@@ -66,29 +68,30 @@ def call_hug_llm(prompt: str) -> str:
     generated = output_ids[0][inputs["input_ids"].shape[-1]:]
     return _tokenizer.decode(generated, skip_special_tokens=True).strip()
 
+
 def call_openai_llm(prompt: str) -> str:
-    llm = ChatOpenAI(
-        model_name="gpt-4o-mini",
-        temperature=0,
-        max_tokens=256,
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a SQL expert. "
+                    "Convert the user's natural language question into a valid SELECT query. "
+                    "Return only the SQL query."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        max_completion_tokens=2048,
     )
 
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are a MySQL expert. "
-                "Convert the user's natural language question into a valid MySQL SELECT query. "
-                "Return only the SQL query."
-            ),
-        },
-        {"role": "user", "content": prompt},
-    ]
+    return response.choices[0].message.content.strip()
 
-    response = llm.invoke(messages)
-    return response.content.strip()
 
-def call_llm(prompt: str,hug=False) -> str:
+def call_llm(prompt: str, hug=False) -> str:
     if hug:
         return call_hug_llm(prompt)
     return call_openai_llm(prompt)
+
